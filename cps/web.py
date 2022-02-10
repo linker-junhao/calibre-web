@@ -373,6 +373,14 @@ def render_books_list(data, sort, book_id, page):
         term = json.loads(flask_session['query'])
         offset = int(int(config.config_books_per_page) * (page - 1))
         return render_adv_search_results(term, offset, order, config.config_books_per_page)
+    elif data == "guest_index":
+        entries, random, pagination = calibre_db.fill_indexpage(page, 0, db.Books, True, order[0],
+        														False, 0,
+                                                                db.books_series_link,
+                                                                db.Books.id == db.books_series_link.c.book,
+                                                                db.Series)
+        return render_title_template('guest_index.html', random=random, entries=entries, pagination=pagination,
+                                     title=_(u"Books"), page='newest', order=order[1])
     else:
         website = data or "newest"
         entries, random, pagination = calibre_db.fill_indexpage(page, 0, db.Books, True, order[0],
@@ -734,7 +742,10 @@ def render_search_results(term, offset=None, order=None, limit=None):
 
 
 # ################################### View Books list ##################################################################
-
+@web.route("/guest-index", defaults={'page': 1})
+def guest_index(page):
+    sort_param = (request.args.get('sort') or 'stored').lower()
+    return render_books_list("guest_index", sort_param, 1, page)
 
 @web.route("/", defaults={'page': 1})
 @web.route('/page/<int:page>')

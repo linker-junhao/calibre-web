@@ -1,3 +1,9 @@
+### MACOS ###
+.DS_Store
+
+### vscode history extension ###
+.history
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
