@@ -182,10 +182,12 @@
           color: #5d5d5d;
           font-size: 12px;
           text-align: center;
+          line-height: 18px;
         "
       >
-        <p>版权所有Copyright ©2020-2021 成都市金牛区地方志编纂委员会办公室</p>
-        <p>邮编：610031 电话：028-87769972 成都市公安局网监中心蜀ICP备11005816号-4</p>
+        <div>版权所有Copyright ©2020-<span id="copy-year">-</span> 成都市金牛区地方志编纂委员会办公室</div>
+        <div>邮编：610031 电话：028-87769972 成都市公安局网监中心蜀ICP备11005816号-4</div>
+        <div>技术支持:成都瑞富迪信息技术有限公司</div>
       </div>
     </div>
   </div>
@@ -222,5 +224,8 @@
       <script src="{{ url_for('static', filename='js/caliBlur.js') }}"></script>
     {% endif %}
     {% block js %}{% endblock %}
+    <script>
+      document.getElementById('copy-year').innerHTML = new Date().getFullYear()
+    </script>
   </body>
 </html>
