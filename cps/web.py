@@ -373,14 +373,6 @@ def render_books_list(data, sort, book_id, page):
         term = json.loads(flask_session['query'])
         offset = int(int(config.config_books_per_page) * (page - 1))
         return render_adv_search_results(term, offset, order, config.config_books_per_page)
-    elif data == "guest_index":
-        entries, random, pagination = calibre_db.fill_indexpage(page, 0, db.Books, True, order[0],
-        														False, 0,
-                                                                db.books_series_link,
-                                                                db.Books.id == db.books_series_link.c.book,
-                                                                db.Series)
-        return render_title_template('guest_index.html', random=random, entries=entries, pagination=pagination,
-                                     title=_(u"Books"), page='newest', order=order[1])
     else:
         website = data or "newest"
         entries, random, pagination = calibre_db.fill_indexpage(page, 0, db.Books, True, order[0],
@@ -742,11 +734,6 @@ def render_search_results(term, offset=None, order=None, limit=None):
 
 
 # ################################### View Books list ##################################################################
-@web.route("/guest-index", defaults={'page': 1})
-def guest_index(page):
-    sort_param = (request.args.get('sort') or 'stored').lower()
-    return render_books_list("guest_index", sort_param, 1, page)
-
 @web.route("/", defaults={'page': 1})
 @web.route('/page/<int:page>')
 @login_required_if_no_ano
@@ -868,6 +855,42 @@ def list_books():
     response = make_response(js_list)
     response.headers["Content-Type"] = "application/json; charset=utf-8"
     return response
+
+@web.route("/ajax/available_books", methods=["GET"])
+@login_required_if_no_ano
+def available_books():
+    off = int(request.args.get("offset") or 0)
+    limit = int(request.args.get("limit") or config.config_books_per_page)
+    join = tuple()
+
+    order = [db.Books.timestamp.desc()]
+    total_count = filtered_count = calibre_db.session.query(db.Books).filter(calibre_db.common_filters()).count()
+    entries, __, __ = calibre_db.fill_indexpage_with_archived_books((int(off) / (int(limit)) + 1),
+                                                                    db.Books,
+                                                                    limit,
+                                                                    True,
+                                                                    order,
+                                                                    False,
+                                                                    True,
+                                                                    config.config_read_column,
+                                                                    *join)
+    result = list()
+    for entry in entries:
+        val = entry[0]
+        val.read_status = entry[1] == ub.ReadBook.STATUS_FINISHED
+        val.is_archived = entry[2] is True
+        for index in range(0, len(val.languages)):
+            val.languages[index].language_name = isoLanguages.get_language_name(get_locale(), val.languages[
+                index].lang_code)
+        result.append(val)
+
+    table_entries = {'totalNotFiltered': total_count, 'total': filtered_count, "rows": result}
+    js_list = json.dumps(table_entries, cls=db.AlchemyEncoder)
+
+    response = make_response(js_list)
+    response.headers["Content-Type"] = "application/json; charset=utf-8"
+    return response
+
 
 @web.route("/ajax/table_settings", methods=['POST'])
 @login_required
