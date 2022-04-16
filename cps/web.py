@@ -861,9 +861,12 @@ def list_books():
 def available_books():
     off = int(request.args.get("offset") or 0)
     limit = int(request.args.get("limit") or config.config_books_per_page)
+    sort = request.args.get("sort", "title")
+    order = request.args.get("order", "desc").lower()
     join = tuple()
 
-    order = [db.Books.timestamp.desc()]
+
+    order = [text(sort + " " + order)]
     total_count = filtered_count = calibre_db.session.query(db.Books).filter(calibre_db.common_filters()).count()
     entries, __, __ = calibre_db.fill_indexpage_with_archived_books((int(off) / (int(limit)) + 1),
                                                                     db.Books,
