@@ -17,11 +17,15 @@
                   <button id="Download" type="button" class="btn btn-primary">
                     {{_('Download')}} :
                   </button>
-                  {% for format in entry.data %}
-                  <a href="{{ url_for('web.download_link', book_id=entry.id, book_format=format.format|lower, anyname=entry.id|string+'.'+format.format|lower) }}" id="btnGroupDrop1{{format.format|lower}}" class="btn btn-primary" role="button">
-                    <span class="glyphicon glyphicon-download"></span>{{format.format}} ({{ format.uncompressed_size|filesizeformat }})
-                  </a>
-                  {% endfor %}
+                  {% if (not g.user.is_authenticated) and entry.tags|length > 0 and "不允许匿名下载" in entry.tags|map(attribute="name") %}
+                    <!-- nothing here -->
+                  {% else %}
+                    {% for format in entry.data %}
+                      <a href="{{ url_for('web.download_link', book_id=entry.id, book_format=format.format|lower, anyname=entry.id|string+'.'+format.format|lower) }}" id="btnGroupDrop1{{format.format|lower}}" class="btn btn-primary" role="button">
+                        <span class="glyphicon glyphicon-download"></span>{{format.format}} ({{ format.uncompressed_size|filesizeformat }})
+                      </a>
+                    {% endfor %}
+                  {% endif %}
                 {% else %}
                   <button id="btnGroupDrop1" type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <span class="glyphicon glyphicon-download"></span> {{_('Download')}}

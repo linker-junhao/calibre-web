@@ -1778,7 +1778,7 @@ def read_book(book_id, book_format):
         return render_title_template('read.html', bookid=book_id, title=book.title, bookmark=bookmark)
     elif book_format.lower() == "pdf":
         log.debug(u"Start pdf reader for %d", book_id)
-        return render_title_template('readpdf.html', pdffile=book_id, title=book.title)
+        return render_title_template('readpdf.html', pdffile=book_id, title=book.title, entry=book)
     elif book_format.lower() == "txt":
         log.debug(u"Start txt reader for %d", book_id)
         return render_title_template('readtxt.html', txtfile=book_id, title=book.title)
