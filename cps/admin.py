@@ -100,6 +100,13 @@ def before_request():
         confirm_login()
     if not ub.check_user_session(current_user.id, flask_session.get('_id')) and 'opds' not in request.path:
         logout_user()
+        
+    def takeNameOrderTextNo(shelf):
+        if re.match(r'^\d+\.', shelf.name) is None:
+            return 0
+        order = int(shelf.name.split('.')[0])
+        return order
+
     g.constants = constants
     g.user = current_user
     g.allow_registration = config.config_public_reg
@@ -109,6 +116,8 @@ def before_request():
     g.config_authors_max = config.config_authors_max
     g.shelves_access = ub.session.query(ub.Shelf).filter(
         or_(ub.Shelf.is_public == 1, ub.Shelf.user_id == current_user.id)).order_by(ub.Shelf.name).all()
+    g.shelves_access.sort(key=takeNameOrderTextNo)
+
     if '/static/' not in request.path and not config.db_configured and \
         request.endpoint not in ('admin.ajax_db_config',
                                  'admin.simulatedbchange',

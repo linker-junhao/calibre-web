@@ -135,9 +135,35 @@
               {% endfor %}
               {% if g.user.is_authenticated or g.allow_anonymous %}
                 <li class="nav-head hidden-xs public-shelves">{{_('Shelves')}}</li>
-                {% for shelf in g.shelves_access %}
-                  <li><a href="{{url_for('shelf.show_shelf', shelf_id=shelf.id)}}"><span class="glyphicon glyphicon-list shelf"></span> {{shelf.name|shortentitle(40)}}{% if shelf.is_public == 1 %} {{_('(Public)')}}{% endif %}</a></li>
-                {% endfor %}
+                <script>
+                  function onShelfkeywordInput() {
+                    console.log($('#shelfKeywordInput'))
+                    $('li.shelf-item').hide();
+                    $('li.shelf-item').each(function(index, element) {
+                      if ($(element).text().indexOf($('#shelfKeywordInput').val()) > -1) {
+                        $(element).show();
+                      }
+                    });
+                  }
+                </script>
+                <li>
+                  <input id="shelfKeywordInput" oninput="onShelfkeywordInput()" />
+                </li>
+                <div class="shelf-item-box">
+                  {% for shelf in g.shelves_access %}
+                    <li class="shelf-item"><a href="{{url_for('shelf.show_shelf', shelf_id=shelf.id)}}"><span class="glyphicon glyphicon-list shelf"></span> {{shelf.name|shortentitle(40)|should_show_order_no(g.user.is_authenticated)}}{% if shelf.is_public == 1 %} {{_('(Public)')}}{% endif %}</a></li>
+                  {% endfor %}
+                </div>
+                <style>
+                  .shelf-item-box {
+                    max-height: 200px;
+                    overflow-y: auto;
+                  }
+                  .shelf-item-box::-webkit-scrollbar{
+                    width:2px;
+                    background-color:#F5F5F5;
+                  }
+                </style>
               {% if not g.user.is_anonymous %}
                 <li id="nav_createshelf" class="create-shelf"><a href="{{url_for('shelf.create_shelf')}}">{{_('Create a Shelf')}}</a></li>
                 <li id="nav_about" {% if page == 'stat' %}class="active"{% endif %}><a href="{{url_for('about.stats')}}"><span class="glyphicon glyphicon-info-sign"></span> {{_('About')}}</a></li>

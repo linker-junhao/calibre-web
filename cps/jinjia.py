@@ -24,6 +24,7 @@
 
 import datetime
 import mimetypes
+import re
 from uuid import uuid4
 
 from babel.dates import format_date
@@ -32,7 +33,6 @@ from flask_babel import get_locale
 from flask_login import current_user
 from markupsafe import escape
 from . import logger
-
 
 jinjia = Blueprint('jinjia', __name__)
 log = logger.create()
@@ -47,6 +47,12 @@ def url_for_other_page(page):
         args[get] = val
     return url_for(request.endpoint, **args)
 
+# show title order
+@jinjia.app_template_filter('should_show_order_no')
+def shouldshoworderno_filter(s, show=False):
+    if show:
+        return s
+    return re.sub(r'^\d+\.', "", s)
 
 # shortentitles to at longest nchar, shorten longer words if necessary
 @jinjia.app_template_filter('shortentitle')
@@ -61,8 +67,8 @@ def shortentitle_filter(s, nchar=20):
         # if word longer than 20 chars truncate line and append '...', otherwise add whole word to result
         # string, and summarize total length to stop at chars given by nchar
         if len(line) > nchar:
-            res += line[:(nchar-3)] + '[..] '
-            suml += nchar+3
+            res += line[:(nchar - 3)] + '[..] '
+            suml += nchar + 3
         else:
             res += line + ' '
             suml += len(line) + 1
@@ -79,24 +85,21 @@ def formatdate_filter(val):
     try:
         return format_date(val, format='medium', locale=get_locale())
     except AttributeError as e:
-        log.error('Babel error: %s, Current user locale: %s, Current User: %s', e,
-                  current_user.locale,
-                  current_user.name
-                  )
+        log.error('Babel error: %s, Current user locale: %s, Current User: %s',
+                  e, current_user.locale, current_user.name)
         return val
 
 
 @jinjia.app_template_filter('formatdateinput')
 def format_date_input(val):
-    input_date = val.isoformat().split('T', 1)[0]  # Hack to support dates <1900
+    input_date = val.isoformat().split('T',
+                                       1)[0]  # Hack to support dates <1900
     return '' if input_date == "0101-01-01" else input_date
 
 
 @jinjia.app_template_filter('strftime')
 def timestamptodate(date, fmt=None):
-    date = datetime.datetime.fromtimestamp(
-        int(date)/1000
-    )
+    date = datetime.datetime.fromtimestamp(int(date) / 1000)
     native = date.replace(tzinfo=None)
     if fmt:
         time_format = fmt
@@ -113,7 +116,8 @@ def yesno(value, yes, no):
 @jinjia.app_template_filter('formatfloat')
 def formatfloat(value, decimals=1):
     value = 0 if not value else value
-    return ('{0:.' + str(decimals) + 'f}').format(value).rstrip('0').rstrip('.')
+    return ('{0:.' + str(decimals) +
+            'f}').format(value).rstrip('0').rstrip('.')
 
 
 @jinjia.app_template_filter('formatseriesindex')
@@ -128,12 +132,12 @@ def formatseriesindex_filter(series_index):
             return series_index
     return 0
 
+
 @jinjia.app_template_filter('escapedlink')
 def escapedlink_filter(url, text):
     return "<a href='{}'>{}</a>".format(url, escape(text))
 
+
 @jinjia.app_template_filter('uuidfilter')
 def uuidfilter(var):
     return uuid4()
-
-
