@@ -3,7 +3,7 @@
 <div class="discover">
   <h2>{{title}}</h2>
       <!--form  method="post"--->
-  {% if g.user.role_download() %}
+  {% if g.user.role_download() and g.user.is_authenticated %}
   <a id="shelf_down" href="{{ url_for('shelf.show_simpleshelf', shelf_id=shelf.id) }}" class="btn btn-primary">{{ _('Download') }} </a>
       {% endif %}
   {% if g.user.is_authenticated %}
