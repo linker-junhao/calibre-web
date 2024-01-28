@@ -1,0 +1,3 @@
+[submodule "packages/docker-calibre-web"]
+	path = packages/docker-calibre-web
+	url = https://github.com/linker-junhao/docker-calibre-web.git
