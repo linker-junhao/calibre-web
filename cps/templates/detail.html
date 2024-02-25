@@ -87,6 +87,7 @@
                             {% else %}
                                 <a target="_blank"
                                    href="{{ url_for('web.read_book', book_id=entry.id, book_format=entry.reader_list[0]) }}"
+                                   toc_href="{{ url_for('web.book_toc', book_id=entry.id, book_format=entry.reader_list[0]) }}"
                                    id="readbtn" class="btn btn-primary" role="button"><span
                                         class="glyphicon glyphicon-book"></span> {{ _('Read in Browser') }}
                                     - {{ entry.reader_list[0] }}</a>

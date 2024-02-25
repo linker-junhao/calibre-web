@@ -40,11 +40,13 @@ from sqlalchemy.sql.functions import coalesce
 from werkzeug.datastructures import Headers
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from cps.epub import parse_epub_page_content, parse_epub_toc
+
 from . import constants, logger, isoLanguages, services
 from . import db, ub, config, app
 from . import calibre_db, kobo_sync_status
 from .search import render_search_results, render_adv_search_results
-from .gdriveutils import getFileFromEbooksFolder, do_gdrive_download
+from .gdriveutils import get_gdrive_file_stream, getFileFromEbooksFolder, do_gdrive_download
 from .helper import check_valid_domain, check_email, check_username, \
     get_book_cover, get_series_cover_thumbnail, get_download_link, send_mail, generate_random_password, \
     send_registration_mail, check_send_to_ereader, check_read_formats, tags_filters, reset_password, valid_email, \
@@ -1526,6 +1528,93 @@ def profile():
 
 # ###################################Show single book ##################################################################
 
+@web.route("/book-toc/<int:book_id>/<book_format>")
+@login_required_if_no_ano
+@viewer_required
+def book_toc(book_id, book_format):
+    book_format = book_format.split(".")[0]
+    book = calibre_db.get_book(book_id)
+    data = calibre_db.get_book_format(book_id, book_format.upper())
+    if not data:
+        return "File not in Database"
+
+    if not book:
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        return redirect(url_for("web.index"))
+
+    if book_format.lower() != "epub":
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        return redirect(url_for("web.index"))
+
+    range_header = request.headers.get('Range', None)
+
+    if config.config_use_google_drive:
+        try:
+            headers = Headers()
+            headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
+            if not range_header:
+                log.info('Serving book: %s', data.name)
+                headers['Accept-Ranges'] = 'bytes'
+            df = getFileFromEbooksFolder(book.path, data.name + "." + book_format)
+            # return get_gdrive_file_stream(df, (book_format.upper() == 'TXT'))
+            return "File Not Found"
+        except AttributeError as ex:
+            log.error_or_exception(ex)
+            return "File Not Found"
+    else:
+        filePath = os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format)
+        tocList = parse_epub_toc(filePath)
+        return render_title_template('book_toc.html', book_id=book_id, book_format=book_format, tocList=tocList, title=book.title)
+
+@web.route("/read_ssr/<int:book_id>/<book_format>/<path:file_path>")
+@login_required_if_no_ano
+@viewer_required
+def read_book_ssr(book_id, book_format, file_path):
+    book_format = book_format.split(".")[0]
+    book = calibre_db.get_book(book_id)
+    data = calibre_db.get_book_format(book_id, book_format.upper())
+    if not data:
+        return "File not in Database"
+
+    if not book:
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        return redirect(url_for("web.index"))
+
+    if book_format.lower() != "epub":
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        return redirect(url_for("web.index"))
+
+    range_header = request.headers.get('Range', None)
+
+    if config.config_use_google_drive:
+        try:
+            headers = Headers()
+            headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
+            if not range_header:
+                log.info('Serving book: %s', data.name)
+                headers['Accept-Ranges'] = 'bytes'
+            df = getFileFromEbooksFolder(book.path, data.name + "." + book_format)
+            # return get_gdrive_file_stream(df, (book_format.upper() == 'TXT'))
+            return "File Not Found"
+        except AttributeError as ex:
+            log.error_or_exception(ex)
+            return "File Not Found"
+    else:
+        bookDocPath = os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format)
+        pageItem = parse_epub_page_content(bookDocPath, file_path)
+        if not pageItem:
+            return ''
+        response = make_response(pageItem.content)
+        response.headers['Content-Type'] = pageItem.media_type + '; charset=utf-8'
+        return response
 
 @web.route("/read/<int:book_id>/<book_format>")
 @login_required_if_no_ano

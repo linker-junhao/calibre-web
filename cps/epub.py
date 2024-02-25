@@ -19,6 +19,7 @@
 import os
 import zipfile
 from lxml import etree
+from ebooklib import epub
 
 from . import isoLanguages, cover
 from . import config, logger
@@ -213,3 +214,22 @@ def parse_epub_series(ns, tree, epub_metadata):
     else:
         epub_metadata['series_id'] = '1'
     return epub_metadata
+
+def parse_epub_toc(filePath):
+    book = epub.read_epub(filePath)
+    return book.toc
+
+def add_siblin_page_url_to_content(curPageItem, prePageItem, nextPageItem):
+    if isinstance(curPageItem, epub.EpubHtml) and isinstance(prePageItem, epub.EpubHtml):
+        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"pre-btn\" href=\""+prePageItem.file_name+"\">pre</a></body>", encoding="utf8"))
+    if isinstance(curPageItem, epub.EpubHtml) and isinstance(nextPageItem, epub.EpubHtml):
+        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"next-btn\" href=\""+nextPageItem.file_name+"\">next</a></body>", encoding="utf8"))
+    return curPageItem
+
+def parse_epub_page_content(filePath, pageName):
+    book = epub.read_epub(filePath)
+    for idx, pageItem in enumerate(book.items):
+        if pageItem.file_name == pageName:
+            if isinstance(pageItem, epub.EpubHtml):
+                add_siblin_page_url_to_content(pageItem, book.items[idx-1], book.items[idx+1])
+            return pageItem
