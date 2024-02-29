@@ -52,7 +52,7 @@ from .helper import check_valid_domain, check_email, check_username, \
     send_registration_mail, check_send_to_ereader, check_read_formats, tags_filters, reset_password, valid_email, \
     edit_book_read_status, valid_password
 from .pagination import Pagination
-from .redirect import redirect_back
+from .redirect import get_redirect_location
 from .babel import get_available_locale
 from .usermanagement import login_required_if_no_ano
 from .kobo_sync_status import remove_synced_book
@@ -88,9 +88,13 @@ except ImportError:
 
 @app.after_request
 def add_security_headers(resp):
-    csp = "default-src 'self'"
-    csp += ''.join([' ' + host for host in config.config_trustedhosts.strip().split(',')])
-    csp += " 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:; img-src 'self'"
+    default_src = ([host.strip() for host in config.config_trustedhosts.split(',') if host] +
+                   ["'self'", "'unsafe-inline'", "'unsafe-eval'"])
+    csp = "default-src " + ' '.join(default_src) + "; "
+    csp += "font-src 'self' data:"
+    if request.endpoint == "web.read_book":
+        csp += " blob:"
+    csp += "; img-src 'self'"
     if request.path.startswith("/author/") and config.config_use_goodreads:
         csp += " images.gr-assets.com i.gr-assets.com s.gr-assets.com"
     csp += " data:"
@@ -615,10 +619,9 @@ def render_ratings_books(page, book_id, order):
                                                                 db_filter,
                                                                 [order[0][0]],
                                                                 True, config.config_read_column,
-                                                                db.books_series_link,
-                                                                db.Books.id == db.books_series_link.c.book,
-                                                                db.Series,
-                                                                db.books_ratings_link, db.Ratings)
+                                                                db.books_ratings_link,
+                                                                db.Books.id == db.books_ratings_link.c.book,
+                                                                db.Ratings)
         title = _("Rating: None")
     else:
         name = calibre_db.session.query(db.Ratings).filter(db.Ratings.id == book_id).first()
@@ -636,19 +639,32 @@ def render_ratings_books(page, book_id, order):
 
 
 def render_formats_books(page, book_id, order):
-    name = calibre_db.session.query(db.Data).filter(db.Data.format == book_id.upper()).first()
-    if name:
+    if book_id == '-1':
+        name = _("None")
         entries, random, pagination = calibre_db.fill_indexpage(page, 0,
                                                                 db.Books,
-                                                                db.Books.data.any(db.Data.format == book_id.upper()),
+                                                                db.Data.format == None,
                                                                 [order[0][0]],
-                                                                True, config.config_read_column)
-        return render_title_template('index.html', random=random, pagination=pagination, entries=entries, id=book_id,
-                                     title=_("File format: %(format)s", format=name.format),
-                                     page="formats",
-                                     order=order[1])
+                                                                True, config.config_read_column,
+                                                                db.Data)
+
     else:
-        abort(404)
+        name = calibre_db.session.query(db.Data).filter(db.Data.format == book_id.upper()).first()
+        if name:
+            name = name.format
+            entries, random, pagination = calibre_db.fill_indexpage(page, 0,
+                                                                    db.Books,
+                                                                    db.Books.data.any(
+                                                                        db.Data.format == book_id.upper()),
+                                                                    [order[0][0]],
+                                                                    True, config.config_read_column)
+        else:
+            abort(404)
+
+    return render_title_template('index.html', random=random, pagination=pagination, entries=entries, id=book_id,
+                                 title=_("File format: %(format)s", format=name),
+                                 page="formats",
+                                 order=order[1])
 
 
 def render_category_books(page, book_id, order):
@@ -1059,7 +1075,7 @@ def ratings_list():
 @login_required_if_no_ano
 def formats_list():
     if current_user.check_visibility(constants.SIDEBAR_FORMAT):
-        if current_user.get_view_property('ratings', 'dir') == 'desc':
+        if current_user.get_view_property('formats', 'dir') == 'desc':
             order = db.Data.format.desc()
             order_no = 0
         else:
@@ -1194,7 +1210,7 @@ def serve_book(book_id, book_format, anyname):
         if book_format.upper() == 'TXT':
             log.info('Serving book: %s', data.name)
             try:
-                rawdata = open(os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format),
+                rawdata = open(os.path.join(config.get_book_path(), book.path, data.name + "." + book_format),
                                "rb").read()
                 result = chardet.detect(rawdata)
                 try:
@@ -1211,7 +1227,7 @@ def serve_book(book_id, book_format, anyname):
                 return "File Not Found"
         # enable byte range read of pdf
         response = make_response(
-            send_from_directory(os.path.join(config.config_calibre_dir, book.path), data.name + "." + book_format))
+            send_from_directory(os.path.join(config.get_book_path(), book.path), data.name + "." + book_format))
         if not range_header:
             log.info('Serving book: %s', data.name)
             response.headers['Accept-Ranges'] = 'bytes'
@@ -1235,7 +1251,7 @@ def send_to_ereader(book_id, book_format, convert):
         response = [{'type': "danger", 'message': _("Please configure the SMTP mail settings first...")}]
         return Response(json.dumps(response), mimetype='application/json')
     elif current_user.kindle_mail:
-        result = send_mail(book_id, book_format, convert, current_user.kindle_mail, config.config_calibre_dir,
+        result = send_mail(book_id, book_format, convert, current_user.kindle_mail, config.get_book_path(),
                            current_user.name)
         if result is None:
             ub.update_download(book_id, int(current_user.id))
@@ -1261,6 +1277,10 @@ def register_post():
         limiter.check()
     except RateLimitExceeded:
         flash(_(u"Please wait one minute to register next user"), category="error")
+        return render_title_template('register.html', config=config, title=_("Register"), page="register")
+    except (ConnectionError, Exception) as e:
+        log.error("Connection error to limiter backend: %s", e)
+        flash(_("Connection error to limiter backend, please contact your administrator"), category="error")
         return render_title_template('register.html', config=config, title=_("Register"), page="register")
     if current_user is not None and current_user.is_authenticated:
         return redirect(url_for('web.index'))
@@ -1324,7 +1344,7 @@ def handle_login_user(user, remember, message, category):
     ub.store_user_session()
     flash(message, category=category)
     [limiter.limiter.storage.clear(k.key) for k in limiter.current_limits]
-    return redirect_back(url_for("web.index"))
+    return redirect(get_redirect_location(request.form.get('next', None), "web.index"))
 
 
 def render_login(username="", password=""):
@@ -1356,11 +1376,15 @@ def login():
 @limiter.limit("3/minute", key_func=lambda: request.form.get('username', "").strip().lower())
 def login_post():
     form = request.form.to_dict()
-    username = form.get('username', "").strip().lower().replace("\n","\\n").replace("\r","")
+    username = form.get('username', "").strip().lower().replace("\n","").replace("\r","")
     try:
         limiter.check()
     except RateLimitExceeded:
-        flash(_(u"Please wait one minute before next login"), category="error")
+        flash(_("Please wait one minute before next login"), category="error")
+        return render_login(username, form.get("password", ""))
+    except (ConnectionError, Exception) as e:
+        log.error("Connection error to limiter backend: %s", e)
+        flash(_("Connection error to limiter backend, please contact your administrator"), category="error")
         return render_login(username, form.get("password", ""))
     if current_user is not None and current_user.is_authenticated:
         return redirect(url_for('web.index'))
@@ -1398,7 +1422,7 @@ def login_post():
             if user is not None and user.name != "Guest":
                 ret, __ = reset_password(user.id)
                 if ret == 1:
-                    flash(_(u"New Password was send to your email address"), category="info")
+                    flash(_(u"New Password was sent to your email address"), category="info")
                     log.info('Password reset for user "%s" IP-address: %s', username, ip_address)
                 else:
                     log.error(u"An unknown error occurred. Please try again later")

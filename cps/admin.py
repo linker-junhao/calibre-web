@@ -48,6 +48,7 @@ from . import db, calibre_db, ub, web_server, config, updater_thread, gdriveutil
     kobo_sync_status, schedule
 from .helper import check_valid_domain, send_test_mail, reset_password, generate_password_hash, check_email, \
     valid_email, check_username
+from .embed_helper import get_calibre_binarypath
 from .gdriveutils import is_gdrive_ready, gdrive_support
 from .render_template import render_title_template, get_sidebar_config
 from .services.worker import WorkerThread
@@ -217,7 +218,7 @@ def admin():
                     form_date += timedelta(hours=int(commit[20:22]), minutes=int(commit[23:]))
             commit = format_datetime(form_date - tz, format='short')
         else:
-            commit = version['version']
+            commit = version['version'].replace("b", " Beta")
 
     all_user = ub.session.query(ub.User).all()
     # email_settings = mail_config.get_mail_settings()
@@ -916,11 +917,15 @@ def list_restriction(res_type, user_id):
 
 @admi.route("/ajax/fullsync", methods=["POST"])
 @login_required
-def ajax_fullsync():
-    count = ub.session.query(ub.KoboSyncedBooks).filter(current_user.id == ub.KoboSyncedBooks.user_id).delete()
-    message = _("{} sync entries deleted").format(count)
-    ub.session_commit(message)
-    return Response(json.dumps([{"type": "success", "message": message}]), mimetype='application/json')
+def ajax_self_fullsync():
+    return do_full_kobo_sync(current_user.id)
+
+
+@admi.route("/ajax/fullsync/<int:userid>", methods=["POST"])
+@login_required
+@admin_required
+def ajax_fullsync(userid):
+    return do_full_kobo_sync(userid)
 
 
 @admi.route("/ajax/pathchooser/")
@@ -928,6 +933,13 @@ def ajax_fullsync():
 @admin_required
 def ajax_pathchooser():
     return pathchooser()
+
+
+def do_full_kobo_sync(userid):
+    count = ub.session.query(ub.KoboSyncedBooks).filter(userid == ub.KoboSyncedBooks.user_id).delete()
+    message = _("{} sync entries deleted").format(count)
+    ub.session_commit(message)
+    return Response(json.dumps([{"type": "success", "message": message}]), mimetype='application/json')
 
 
 def check_valid_read_column(column):
@@ -1728,6 +1740,9 @@ def _db_configuration_update_helper():
         calibre_db.update_config(config)
         if not os.access(os.path.join(config.config_calibre_dir, "metadata.db"), os.W_OK):
             flash(_("DB is not Writeable"), category="warning")
+    _config_string(to_save, "config_calibre_split_dir")
+    config.config_calibre_split = to_save.get('config_calibre_split', 0) == "on"
+    calibre_db.update_config(config)
     config.save()
     return _db_configuration_result(None, gdrive_error)
 
@@ -1748,6 +1763,7 @@ def _configuration_update_helper():
 
         _config_checkbox_int(to_save, "config_uploading")
         _config_checkbox_int(to_save, "config_unicode_filename")
+        _config_checkbox_int(to_save, "config_embed_metadata")
         # Reboot on config_anonbrowse with enabled ldap, as decoraters are changed in this case
         reboot_required |= (_config_checkbox_int(to_save, "config_anonbrowse")
                             and config.config_login_type == constants.LOGIN_LDAP)
@@ -1764,8 +1780,14 @@ def _configuration_update_helper():
             constants.EXTENSIONS_UPLOAD = config.config_upload_formats.split(',')
 
         _config_string(to_save, "config_calibre")
-        _config_string(to_save, "config_converterpath")
+        _config_string(to_save, "config_binariesdir")
         _config_string(to_save, "config_kepubifypath")
+        if "config_binariesdir" in to_save:
+            calibre_status = helper.check_calibre(config.config_binariesdir)
+            if calibre_status:
+                return _configuration_result(calibre_status)
+            to_save["config_converterpath"] = get_calibre_binarypath("ebook-convert")
+            _config_string(to_save, "config_converterpath")
 
         reboot_required |= _config_int(to_save, "config_login_type")
 
@@ -1812,6 +1834,7 @@ def _configuration_update_helper():
         _config_checkbox(to_save, "config_password_number")
         _config_checkbox(to_save, "config_password_lower")
         _config_checkbox(to_save, "config_password_upper")
+        _config_checkbox(to_save, "config_password_character")
         _config_checkbox(to_save, "config_password_special")
         if 0 < int(to_save.get("config_password_min_length", "0")) < 41:
             _config_int(to_save, "config_password_min_length")
@@ -1819,6 +1842,8 @@ def _configuration_update_helper():
             return _configuration_result(_('Password length has to be between 1 and 40'))
         reboot_required |= _config_int(to_save, "config_session")
         reboot_required |= _config_checkbox(to_save, "config_ratelimiter")
+        reboot_required |= _config_string(to_save, "config_limiter_uri")
+        reboot_required |= _config_string(to_save, "config_limiter_options")
 
         # Rarfile Content configuration
         _config_string(to_save, "config_rarfile_location")
