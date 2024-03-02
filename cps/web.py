@@ -21,6 +21,7 @@
 import os
 import json
 import mimetypes
+import time
 import chardet  # dependency of requests
 import copy
 
@@ -1639,6 +1640,58 @@ def read_book_ssr(book_id, book_format, file_path):
         response = make_response(pageItem.content)
         response.headers['Content-Type'] = pageItem.media_type + '; charset=utf-8'
         return response
+
+@web.route("/ajax/reader-rules")
+@login_required_if_no_ano
+def book_rule_json():
+    response = make_response([{
+        "bookSourceUrl": "https://www.idxstudio.cn",
+        "bookSourceName": "idxEbook",
+        "bookSourceGroup": "idxstudio",
+        "bookSourceType": 0,
+        "customOrder": 0,
+        "enabled": True,
+        "enabledExplore": True,
+        "enabledCookieJar": True,
+        "bookSourceComment": "bykk",
+        "lastUpdateTime": time.time(),
+        "weight": 0,
+        "searchUrl": "/ebook/search/stored/?query={{key}}",
+        "ruleSearch": {
+            "bookList": ".discover@.row@.book",
+            "name": ".meta@a.0@p@text",
+            "author": ".author-name@text",
+            "intro": ".meta@a.0@p@text",
+            "kind": ".meta@a.0@p@text",
+            "lastChapter": ".meta@a.0@p@text",
+            "bookUrl": ".meta@a.0@href",
+            "coverUrl": ".cover@img@src"
+        },
+        "ruleBookInfo": {
+            "init": "",
+            "name": ".book-meta@id.title@text",
+            "author": ".book-meta@.author@a@text",
+            "intro": ".book-meta@.comments@p@text",
+            "kind": ".book-meta@id.title@text",
+            "lastChapter": "",
+            "coverUrl": ".cover@img@src",
+            "tocUrl": ".book-meta@.btn-toolbar@id.readbtn@toc_href"
+        },
+        "ruleToc": {
+            "chapterList": "id.toc@li@a",
+            "chapterName": "textNodes",
+            "chapterUrl": "href",
+            "nextTocUrl": ""
+        },
+        "ruleContent": {
+            "content": "body@p",
+            "nextContentUrl": "id.next-btnnext-btn@href"
+        },
+        "tag": "idxEbook",
+        "key": "https://www.idxstudio.cn"
+    }])
+    response.headers["Content-Type"] = "application/json; charset=utf-8"
+    return response
 
 @web.route("/read/<int:book_id>/<book_format>")
 @login_required_if_no_ano
