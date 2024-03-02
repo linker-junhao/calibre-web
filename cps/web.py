@@ -1684,7 +1684,7 @@ def book_rule_json():
             "nextTocUrl": ""
         },
         "ruleContent": {
-            "content": "body@p",
+            "content": "body@p@textNodes",
             "nextContentUrl": "id.next-btnnext-btn@href"
         },
         "tag": "idxEbook",
