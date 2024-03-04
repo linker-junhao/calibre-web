@@ -26,6 +26,7 @@ from . import config, logger
 from .helper import split_authors
 from .epub_helper import get_content_opf, default_ns
 from .constants import BookMeta
+from flask import url_for
 
 log = logger.create()
 
@@ -207,17 +208,17 @@ def parse_epub_toc(filePath):
     book = epub.read_epub(filePath)
     return book.toc
 
-def add_siblin_page_url_to_content(curPageItem, prePageItem, nextPageItem):
+def add_siblin_page_url_to_content(curPageItem, prePageItem, nextPageItem, book_id, book_format):
     if isinstance(curPageItem, epub.EpubHtml) and isinstance(prePageItem, epub.EpubHtml):
-        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"pre-btn\" href=\""+prePageItem.file_name+"\">pre</a></body>", encoding="utf8"))
+        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"pre-btn\" href=\""+url_for('web.read_book_ssr', book_id=book_id, book_format=book_format, file_path=prePageItem.file_name)+"\">pre</a></body>", encoding="utf8"))
     if isinstance(curPageItem, epub.EpubHtml) and isinstance(nextPageItem, epub.EpubHtml):
-        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"next-btn\" href=\""+nextPageItem.file_name+"\">next</a></body>", encoding="utf8"))
+        curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"next-btn\" href=\""+url_for('web.read_book_ssr', book_id=book_id, book_format=book_format, file_path=nextPageItem.file_name)+"\">next</a></body>", encoding="utf8"))
     return curPageItem
 
-def parse_epub_page_content(filePath, pageName):
+def parse_epub_page_content(filePath, pageName, book_id, book_format):
     book = epub.read_epub(filePath)
     for idx, pageItem in enumerate(book.items):
         if pageItem.file_name == pageName:
             if isinstance(pageItem, epub.EpubHtml):
-                add_siblin_page_url_to_content(pageItem, book.items[idx-1], book.items[idx+1])
+                add_siblin_page_url_to_content(pageItem, book.items[idx-1], book.items[idx+1], book_id, book_format)
             return pageItem

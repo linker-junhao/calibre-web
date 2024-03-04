@@ -1634,7 +1634,7 @@ def read_book_ssr(book_id, book_format, file_path):
             return "File Not Found"
     else:
         bookDocPath = os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format)
-        pageItem = parse_epub_page_content(bookDocPath, file_path)
+        pageItem = parse_epub_page_content(bookDocPath, file_path, book_id, book_format)
         if not pageItem:
             return ''
         response = make_response(pageItem.content)
@@ -1644,6 +1644,12 @@ def read_book_ssr(book_id, book_format, file_path):
 @web.route("/ajax/reader-rules")
 @login_required_if_no_ano
 def book_rule_json():
+    shelfList = ub.session.query(ub.Shelf).filter(
+        or_(ub.Shelf.is_public == 1, ub.Shelf.user_id == current_user.id)).order_by(ub.Shelf.name).all()
+    exploreItems = []
+    for shelf in shelfList:
+        exploreItems.append(shelf.name+'::'+url_for('shelf.show_shelf', shelf_id=shelf.id))
+    exploreItems.reverse()
     response = make_response([{
         "bookSourceUrl": "https://www.idxstudio.cn",
         "bookSourceName": "idxEbook",
@@ -1652,6 +1658,17 @@ def book_rule_json():
         "customOrder": 0,
         "enabled": True,
         "enabledExplore": True,
+        "exploreUrl": "\n".join(exploreItems),
+        "ruleExplore": {
+            "bookList": ".discover@.row@.book",
+            "name": ".meta@a.0@p@text",
+            "author": ".author-name@text",
+            "intro": ".meta@a.0@p@text",
+            "kind": ".meta@a.0@p@text",
+            "lastChapter": ".meta@a.0@p@text",
+            "bookUrl": ".meta@a.0@href",
+            "coverUrl": ".cover@img@src"
+        },
         "enabledCookieJar": True,
         "bookSourceComment": "bykk",
         "lastUpdateTime": time.time(),
@@ -1684,11 +1701,11 @@ def book_rule_json():
             "nextTocUrl": ""
         },
         "ruleContent": {
-            "content": "body@p@textNodes",
-            "nextContentUrl": "id.next-btnnext-btn@href"
+            "content": "body@p@html",
+            "nextContentUrl": "id.next-btn@href"
         },
         "tag": "idxEbook",
-        "key": "https://www.idxstudio.cn"
+        "key": "idxEbook"
     }])
     response.headers["Content-Type"] = "application/json; charset=utf-8"
     return response
