@@ -215,10 +215,10 @@ def add_siblin_page_url_to_content(curPageItem, prePageItem, nextPageItem, book_
         curPageItem.content = curPageItem.content.replace(bytes("</body>", encoding="utf8"), bytes("<a id=\"next-btn\" href=\""+url_for('web.read_book_ssr', book_id=book_id, book_format=book_format, file_path=nextPageItem.file_name)+"\">next</a></body>", encoding="utf8"))
     return curPageItem
 
-def parse_epub_page_content(filePath, pageName, book_id, book_format):
+def parse_epub_page_content(filePath, pageName, book_id, book_format, jumpLink=True):
     book = epub.read_epub(filePath)
     for idx, pageItem in enumerate(book.items):
         if pageItem.file_name == pageName:
-            if isinstance(pageItem, epub.EpubHtml):
+            if isinstance(pageItem, epub.EpubHtml) and jumpLink:
                 add_siblin_page_url_to_content(pageItem, book.items[idx-1], book.items[idx+1], book_id, book_format)
             return pageItem

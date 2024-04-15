@@ -1552,6 +1552,56 @@ def profile():
 
 
 # ###################################Show single book ##################################################################
+@web.route("/ajax-book-toc/<int:book_id>/<book_format>")
+@login_required_if_no_ano
+@viewer_required
+def book_toc_json(book_id, book_format):
+    book_format = book_format.split(".")[0]
+    book = calibre_db.get_book(book_id)
+    data = calibre_db.get_book_format(book_id, book_format.upper())
+    if not data:
+        return "File not in Database"
+
+    if not book:
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        return redirect(url_for("web.index"))
+
+    if book_format.lower() != "epub":
+        log.debug("Selected book is unavailable. File does not exist or is not accessible")
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        return redirect(url_for("web.index"))
+
+    range_header = request.headers.get('Range', None)
+
+    if config.config_use_google_drive:
+        try:
+            headers = Headers()
+            headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
+            if not range_header:
+                log.info('Serving book: %s', data.name)
+                headers['Accept-Ranges'] = 'bytes'
+            df = getFileFromEbooksFolder(book.path, data.name + "." + book_format)
+            # return get_gdrive_file_stream(df, (book_format.upper() == 'TXT'))
+            return "File Not Found"
+        except AttributeError as ex:
+            log.error_or_exception(ex)
+            return "File Not Found"
+    else:
+        filePath = os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format)
+        tocList = parse_epub_toc(filePath)
+        list = []
+        for t in tocList:
+            list.append({
+                "title": t.title,
+                "url": url_for('web.read_book_ssr', book_id=book_id, book_format=book_format, file_path=t.href)
+            })
+        response = make_response(list)
+        response.headers["Content-Type"] = "application/json; charset=utf-8"
+        return response
+    
 
 @web.route("/book-toc/<int:book_id>/<book_format>")
 @login_required_if_no_ano
@@ -1634,7 +1684,8 @@ def read_book_ssr(book_id, book_format, file_path):
             return "File Not Found"
     else:
         bookDocPath = os.path.join(config.config_calibre_dir, book.path, data.name + "." + book_format)
-        pageItem = parse_epub_page_content(bookDocPath, file_path, book_id, book_format)
+        jumpLink = request.args.get('jumpLink')
+        pageItem = parse_epub_page_content(bookDocPath, file_path, book_id, book_format, jumpLink != '0')
         if not pageItem:
             return ''
         response = make_response(pageItem.content)
