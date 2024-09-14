@@ -8,8 +8,8 @@
   <img title="{{author.name}}" src="{{author.image_url}}" alt="{{author.name}}" class="author-photo pull-left">
   {% endif %}
 
-  {%if author.about is not none %}
-  <p>{{author.about}}</p>
+  {%if author.safe_about is not none %}
+  <p>{{author.safe_about|safe}}</p>
   {% endif %}
 
   - {{_("via")}} <a href="{{author.link}}" class="author-link" target="_blank" rel="noopener">Goodreads</a>
@@ -62,11 +62,9 @@
               <a class="author-name" href="{{url_for('web.books_list',  data='author', sort_param='stored', book_id=author.id) }}">{{author.name.replace('|',',')|shortentitle(30)}}</a>
             {% endif %}
           {% endfor %}
-          {% for format in entry.Books.data %}
-            {% if format.format|lower in g.constants.EXTENSIONS_AUDIO %}
+          {% if entry.Books.data|music %}
             <span class="glyphicon glyphicon-music"></span>
-            {% endif %}
-          {% endfor %}
+          {% endif %}
         </p>
         {% if entry.Books.series.__len__() > 0 %}
         <p class="series">
